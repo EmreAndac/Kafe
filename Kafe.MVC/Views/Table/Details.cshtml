@@ -1,0 +1,146 @@
+﻿@using Kafe.Entities.Entity.Concrete
+@model Tuple<Table, IEnumerable<Category>, IEnumerable<Product>>
+
+<div style="display: flex; gap: 2rem;">
+    <!-- Sol Kısım -->
+    <div class="col-md-4 border-end">
+        <h2>Masa Bilgisi</h2>
+        <p><strong>Masa No:</strong> @Model.Item1.TableNumber</p>
+        <p><strong>Durum:</strong> @(Model.Item1.IsOccupied ? "Meşgul" : "Boş")</p>
+        <div id="order-summary">
+            <h3>Mevcut Siparişler:</h3>
+            <ul id="order-items">
+                <!-- Siparişler dinamik olarak yüklenecek -->
+            </ul>
+            <button id="save-order" class="btn btn-primary mt-3">Siparişi Kaydet</button>
+        </div>
+    </div>
+
+    <!-- Sağ Kısım -->
+    <div class="col-md-8">
+        <h2>Kategoriler</h2>
+        <div id="category-buttons">
+            @foreach (var category in Model.Item2)
+            {
+                <button type="button" class="btn btn-secondary" onclick="loadProducts(@category.Id)">@category.CategoryName</button>
+            }
+        </div>
+
+        <h2 class="mt-4">Ürünler</h2>
+        <div id="product-list">
+            <!-- Ürünler dinamik olarak yüklenecek -->
+        </div>
+    </div>
+</div>
+
+<!-- Basit CSS -->
+<style>
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .table th, .table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .table th {
+            background-color: #f2f2f2;
+        }
+
+    h2, h3, h1 {
+        margin-bottom: 1rem;
+    }
+
+    form {
+        margin-bottom: 2rem;
+    }
+
+    #order-summary {
+        margin-top: 2rem;
+    }
+
+    #order-items li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .btn-secondary {
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+</style>
+
+<!-- JavaScript -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    var orderItems = [];
+
+    function loadProducts(categoryId) {
+        $.get('/Table/GetProductsByCategory', { categoryId: categoryId }, function (products) {
+            var productList = $('#product-list');
+            productList.empty();
+
+            products.forEach(function (product) {
+                var productDiv = $('<div>').addClass('product');
+                productDiv.append($('<h4>').text(product.name));
+                productDiv.append($('<p>').text('Fiyat: ' + product.price + ' TL'));
+
+                var quantityInput = $('<input>').attr('type', 'number').attr('min', '1').attr('value', '1');
+                productDiv.append(quantityInput);
+
+                var addButton = $('<button>').text('Ekle').addClass('btn btn-success').click(function () {
+                    addOrderItem(product.id, product.name, product.price, quantityInput.val());
+                });
+                productDiv.append(addButton);
+
+                var removeButton = $('<button>').text('Kaldır').addClass('btn btn-danger').click(function () {
+                    removeOrderItem(product.id);
+                });
+                productDiv.append(removeButton);
+
+                productList.append(productDiv);
+            });
+        });
+    }
+
+    function addOrderItem(productId, productName, productPrice, quantity) {
+        var existingItem = orderItems.find(item => item.productId === productId);
+        if (existingItem) {
+            existingItem.quantity += parseInt(quantity);
+        } else {
+            orderItems.push({ productId: productId, productName: productName, productPrice: productPrice, quantity: parseInt(quantity) });
+        }
+        updateOrderSummary();
+    }
+
+    function removeOrderItem(productId) {
+        orderItems = orderItems.filter(item => item.productId !== productId);
+        updateOrderSummary();
+    }
+
+    function updateOrderSummary() {
+        var orderItemsList = $('#order-items');
+        orderItemsList.empty();
+
+        orderItems.forEach(function (item) {
+            var li = $('<li>').text(item.productName + ' - ' + item.quantity + ' x ' + item.productPrice + ' TL');
+            var removeButton = $('<button>').text('Kaldır').addClass('btn btn-danger').click(function () {
+                removeOrderItem(item.productId);
+            });
+            li.append(removeButton);
+            orderItemsList.append(li);
+        });
+    }
+
+    $('#save-order').click(function () {
+        $.post('/Table/SaveOrder', { tableId: @Model.Item1.Id, orderItems: orderItems }, function (response) {
+            alert(response.message || 'Sipariş kaydedildi.');
+            window.location.reload();
+        });
+    });
+</script>
